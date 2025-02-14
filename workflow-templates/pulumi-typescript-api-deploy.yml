@@ -1,0 +1,89 @@
+name: Pulumi TypeScript API Deployment
+
+on:
+  release:
+    types: [published]
+  push:
+    branches:
+      - main
+      - next
+  workflow_dispatch:
+    branches:
+      - main
+      - next
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node Setup
+        uses: actions/setup-node@v4
+        with:
+          cache: 'yarn'
+          node-version-file: '.nvmrc'
+      - name: Deployment Environment
+        run: |
+          echo "REF_SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_ENV
+          echo "PULUMI_CONFIG_PASSPHRASE=${{ secrets.PULUMI_PASSPHRASE }}" >> $GITHUB_ENV
+          echo "PULUMI_S3_BUCKET=${{ secrets.PULUMI_S3_BUCKET }}" >> $GITHUB_ENV
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "PULUMI_STACK=prod" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_BRANCH" == "main" ]]; then
+            echo "PULUMI_STACK=qa" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_BRANCH" == "next" ]]; then
+            echo "PULUMI_STACK=dev" >> "$GITHUB_ENV"
+          else
+            echo "Unsupported environment $BRANCH_NAME" >&2
+            exit 1
+          fi
+        env:
+          GITHUB_BRANCH: ${{ github.ref_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+      - name: AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+      - name: API Dependencies
+        run: yarn install
+      - name: Prisma Setup
+        run: yarn generate
+      - name: API Build
+        run: yarn build
+      - name: Pulumi Dependencies
+        run: yarn install
+        working-directory: ./infrastructure
+      - name: Pulumi Install
+        uses: pulumi/actions@v4
+      - name: Pulumi Stack
+        run: |
+          pulumi login s3://${{ env.PULUMI_S3_BUCKET }}
+          (
+            pulumi stack ls | grep "${{ env.PULUMI_STACK }}"
+            if [ $? -eq 0 ]; then
+              pulumi cancel -s "${{ env.PULUMI_STACK }}" -y --non-interactive
+            fi
+          ) || true
+        working-directory: ./infrastructure
+      - name: Pulumi Infrastructure
+        uses: pulumi/actions@v6
+        id: pulumi
+        with:
+          cloud-url: s3://${{ env.PULUMI_S3_BUCKET }}
+          command: up
+          comment-on-pr: true
+          refresh: true
+          secrets-provider: 'passphrase'
+          stack-name: ${{ env.PULUMI_STACK }}
+          upsert: true
+          work-dir: ./infrastructure
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192 --loader ts-node/esm'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prisma Connection String
+        run: |
+          echo "DB_URL=`pulumi stack output -s ${{ env.PULUMI_STACK }} database -j | jq -r .connectionString`" >> $GITHUB_ENV
+        working-directory: ./infrastructure
+      - name: Prisma Migration
+        run: npx prisma db push
