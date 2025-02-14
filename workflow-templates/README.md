@@ -54,17 +54,17 @@ This workflow requires the following secrets to be set in your repository's sett
 
 - **Usage:**
   ```
-jobs:
-  pulumiTypescriptAPIDeployment:
-    uses: thesparklaboratory/.github/workflow-templates/pulumi-typescript-api-deployment.yml@main
-    with:
-      AWS_REGION: us-east-2
-      PULUMI_S3_BUCKET: pulumi-s3-bucket
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PULUMI_PASSPHRASE: ${{ secrets.PULUMI_PASSPHRASE }}
+  jobs:
+    pulumiTypescriptAPIDeployment:
+      uses: thesparklaboratory/.github/workflow-templates/pulumi-typescript-api-deployment.yml@main
+      with:
+        AWS_REGION: us-east-2
+        PULUMI_S3_BUCKET: pulumi-s3-bucket
+      secrets:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PULUMI_PASSPHRASE: ${{ secrets.PULUMI_PASSPHRASE }}
   ```
 
 ### Step-by-Step Process
