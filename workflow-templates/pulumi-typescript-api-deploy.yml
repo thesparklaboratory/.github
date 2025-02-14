@@ -1,103 +1,24 @@
 name: Pulumi TypeScript API Deployment
 
 on:
-  workflow_call:
-    inputs:
-      AWS_REGION:
-        description: 'AWS region for deploying infrastructure.'
-        required: true
-        type: string
-      PULUMI_S3_BUCKET:
-        description: 'S3 bucket used for storing Pulumi state.'
-        required: true
-        type: string
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        description: 'AWS access key ID for deploying infrastructure.'
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        description: 'AWS secret access key for deploying infrastructure.'
-        required: true
-      GH_TOKEN:
-        description: 'GITHUB_TOKEN in order to comment on PRs.'
-        required: true
-      PULUMI_PASSPHRASE:
-        description: 'Passphrase for Pulumi configuration encryption.'
-        required: true
+  release:
+    types: [published]
+  push:
+    branches:
+      - main
+      - next
+  workflow_dispatch:
+    branches:
+      - main
+      - next
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Node Setup
-        uses: actions/setup-node@v4
-        with:
-          cache: 'yarn'
-          node-version-file: '.nvmrc'
-      - name: Deployment Environment
-        run: |
-          echo "REF_SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_ENV
-          echo "PULUMI_CONFIG_PASSPHRASE=${{ secrets.PULUMI_PASSPHRASE }}" >> $GITHUB_ENV
-          echo "PULUMI_S3_BUCKET=${{ inputs.PULUMI_S3_BUCKET }}" >> $GITHUB_ENV
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            echo "PULUMI_STACK=prod" >> "$GITHUB_ENV"
-          elif [[ "$GITHUB_BRANCH" == "main" ]]; then
-            echo "PULUMI_STACK=qa" >> "$GITHUB_ENV"
-          elif [[ "$GITHUB_BRANCH" == "next" ]]; then
-            echo "PULUMI_STACK=dev" >> "$GITHUB_ENV"
-          else
-            echo "PULUMI_STACK=$GITHUB_BRANCH"
-            echo "Unsupported environment $GITHUB_BRANCH" >&2
-            exit 1
-          fi
-        env:
-          GITHUB_BRANCH: ${{ github.ref_name }}
-          GITHUB_REF_TYPE: ${{ github.ref_type }}
-      - name: AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.AWS_REGION }}
-      - name: API Dependencies
-        run: yarn install
-      - name: Prisma Setup
-        run: yarn generate
-      - name: API Build
-        run: yarn build
-      - name: Pulumi Dependencies
-        run: yarn install
-        working-directory: ./infrastructure
-      - name: Pulumi Install
-        uses: pulumi/actions@v6
-      - name: Pulumi Stack
-        run: |
-          pulumi login s3://${{ env.PULUMI_S3_BUCKET }}
-          (
-            pulumi stack ls | grep "${{ env.PULUMI_STACK }}"
-            if [ $? -eq 0 ]; then
-              pulumi cancel -s "${{ env.PULUMI_STACK }}" -y --non-interactive
-            fi
-          ) || true
-        working-directory: ./infrastructure
-      - name: Pulumi Infrastructure
-        uses: pulumi/actions@v6
-        id: pulumi
-        with:
-          cloud-url: s3://${{ env.PULUMI_S3_BUCKET }}
-          command: up
-          comment-on-pr: true
-          refresh: true
-          secrets-provider: 'passphrase'
-          stack-name: ${{ env.PULUMI_STACK }}
-          upsert: true
-          work-dir: ./infrastructure
-        env:
-          NODE_OPTIONS: '--max-old-space-size=8192 --loader ts-node/esm'
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-      - name: Prisma Connection String
-        run: |
-          echo "DB_URL=`pulumi stack output -s ${{ env.PULUMI_STACK }} database -j | jq -r .connectionString`" >> $GITHUB_ENV
-        working-directory: ./infrastructure
-      - name: Prisma Migration
-        run: npx prisma db push
+  pulumiTypescriptAPIDeployment:
+    uses: thesparklaboratory/gh-actions-workflows/.github/workflows/pulumi-typescript-api-deploy.yml@main
+    with:
+      AWS_REGION: us-east-2
+      PULUMI_S3_BUCKET: myproject-pulumi
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_PASSPHRASE: ${{ secrets.PULUMI_PASSPHRASE }}
