@@ -30,12 +30,14 @@ This workflow requires the following secrets to be set in your repository's sett
 
 | Name                     | Type   | Required? | Description                                                       |
 |--------------------------|--------|:---------:|-------------------------------------------------------------------|
-| `PULUMI_PASSPHRASE`      | secret | ✅        | Passphrase for Pulumi configuration encryption.                   |
-| `PULUMI_S3_BUCKET`       | secret | ✅        | S3 bucket used for storing Pulumi state.                          |
 | `AWS_ACCESS_KEY_ID`      | secret | ✅        | AWS access key ID for deploying infrastructure.                   |
+| `AWS_REGION`             | input  | ✅        | AWS region for deploying infrastructure.                          |
 | `AWS_SECRET_ACCESS_KEY`  | secret | ✅        | AWS secret access key for deploying infrastructure.               |
+| `GH_TOKEN`               | secret | ✅        | `secrets.GITHUB_TOKEN` used for commenting on PRs.                |
+| `PULUMI_PASSPHRASE`      | secret | ✅        | Passphrase for Pulumi configuration encryption.                   |
+| `PULUMI_S3_BUCKET`       | input  | ✅        | S3 bucket used for storing Pulumi state.                          |
 
-### Workflow Triggers and Environment Variables
+### Using the Reusable Workflow
 
 - **Triggers:**
   - **Release:** Triggered when a release is published.
@@ -49,6 +51,21 @@ This workflow requires the following secrets to be set in your repository's sett
     - `prod` for tag events.
     - `qa` for pushes to `main`.
     - `dev` for pushes to `next`.
+
+- **Usage:**
+  ```
+jobs:
+  pulumiTypescriptAPIDeployment:
+    uses: thesparklaboratory/.github/workflow-templates/pulumi-typescript-api-deployment.yml@main
+    with:
+      AWS_REGION: us-east-2
+      PULUMI_S3_BUCKET: pulumi-s3-bucket
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_PASSPHRASE: ${{ secrets.PULUMI_PASSPHRASE }}
+  ```
 
 ### Step-by-Step Process
 
